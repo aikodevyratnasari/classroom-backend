@@ -40,7 +40,7 @@ The first time, push your schema to the database:
 npm run db:push
 ```
 
-This creates the tables defined in `src/db/schema.ts` without creating migration files.
+This applies schema changes directly to the database defined in `src/db/schema/index.ts` without creating migration files.
 
 ### 5. Run the Server
 
@@ -63,10 +63,12 @@ npm start
 classroom-backend/
 ├── src/
 │   ├── db/
-│   │   ├── client.ts      # Database connection initialization
-│   │   ├── schema.ts      # Table definitions and type inference
-│   │   └── migrate.ts     # Migration runner helper
-│   └── server.ts          # Express app with example CRUD routes
+│   │   ├── client.ts           # Database connection initialization
+│   │   ├── schema/
+│   │   │   ├── index.ts        # Table definitions and type inference
+│   │   │   └── app.ts          # Application-specific table schemas
+│   │   └── migrate.ts          # Migration runner helper
+│   └── server.ts               # Express app with example CRUD routes
 ├── drizzle/               # Auto-generated migration files
 ├── dist/                  # Compiled JavaScript output
 ├── drizzle.config.ts      # Drizzle Kit configuration
@@ -92,7 +94,7 @@ import { db } from './db/client.ts';
 const results = await db.select().from(subjectsTable);
 ```
 
-### `src/db/schema.ts`
+### `src/db/schema/index.ts`
 Defines database tables with full type safety:
 - Each table is a Postgres column definition
 - Automatic type inference for queries
@@ -205,9 +207,9 @@ app.delete('/api/subjects/:id', async (req, res) => {
 ## Drizzle Kit Commands
 
 ### `npm run db:push`
-Creates or updates schema directly in the database.
+Applies schema changes directly to the database.
 - Use in **development** for quick iterations
-- Generates migration files automatically
+- Does not create migration files on disk; changes are applied immediately
 
 ```bash
 npm run db:push
@@ -226,7 +228,7 @@ npm run db:migrate
 
 ## Adding New Tables
 
-1. **Define the table** in `src/db/schema.ts`:
+1. **Define the table** in `src/db/schema/index.ts`:
 
 ```typescript
 export const studentsTable = pgTable('students', {

@@ -5,14 +5,13 @@
   "main": "dist/server.js",
   "type": "module",
   "scripts": {
-  "dev": "tsx watch src/server.ts",
-  "build": "tsc",
-  "start": "node dist/server.js",
-
-   "db:generate": "node --import tsx ./node_modules/drizzle-kit/bin.cjs generate",
-    "db:push": "node --import tsx ./node_modules/drizzle-kit/bin.cjs push",
-    "db:migrate": "node --import tsx ./node_modules/drizzle-kit/bin.cjs migrate"
-},
+    "dev": "tsx watch src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js",
+    "db:generate": "tsx ./node_modules/drizzle-kit/bin.cjs generate",
+    "db:push": "tsx ./node_modules/drizzle-kit/bin.cjs push",
+    "db:migrate": "tsx ./node_modules/drizzle-kit/bin.cjs migrate"
+  },
   "dependencies": {
     "dotenv": "^16.6.1",
     "drizzle-orm": "^0.45.1",

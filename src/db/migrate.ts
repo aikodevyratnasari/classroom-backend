@@ -23,10 +23,10 @@ async function runMigrations() {
     // - Production: npm run db:migrate (after generating migration files)
     
     console.log('Migrations completed successfully');
-    process.exit(0);
+    process.exitCode = 0;
   } catch (error) {
     console.error('Migration failed:', error);
-    process.exit(1);
+    process.exitCode = 1;
   } finally {
     await sql.end();
   }

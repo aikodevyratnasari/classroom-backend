@@ -9,7 +9,8 @@
 
 import { db } from './client.js';
 import { subjectsTable } from './schema.js';
-import { eq, like, desc, asc, inArray } from 'drizzle-orm';
+import { eq, like, desc, asc, inArray, gt, and, count } from 'drizzle-orm';
+import { sql } from './client.js';
 
 // ============================================================================
 // SELECT Queries (Read operations)
@@ -22,7 +23,7 @@ async function getAllSubjects() {
 }
 
 /** Get subject by ID */
-async function getSubjectById(id: string) {
+async function getSubjectById(id: number) {
   const subject = await db
     .select()
     .from(subjectsTable)
@@ -97,7 +98,7 @@ async function getSubjectsPage(page: number, pageSize: number) {
 }
 
 /** Check if subject exists */
-async function subjectExists(id: string): Promise<boolean> {
+async function subjectExists(id: number): Promise<boolean> {
   const result = await db
     .select({ id: subjectsTable.id })
     .from(subjectsTable)
@@ -111,11 +112,18 @@ async function subjectExists(id: string): Promise<boolean> {
 // ============================================================================
 
 /** Create a single subject */
-async function createSubject(name: string, description?: string) {
+async function createSubject(
+  name: string,
+  code: string,
+  departmentId: number,
+  description?: string
+) {
   const result = await db
     .insert(subjectsTable)
     .values({
       name,
+      code,
+      departmentId,
       description: description || null,
     })
     .returning();
@@ -124,7 +132,9 @@ async function createSubject(name: string, description?: string) {
 }
 
 /** Create multiple subjects at once (batch insert) */
-async function createMultipleSubjects(subjects: Array<{ name: string; description?: string }>) {
+async function createMultipleSubjects(
+  subjects: Array<{ name: string; code: string; departmentId: number; description?: string }>
+) {
   const results = await db
     .insert(subjectsTable)
     .values(subjects)
@@ -138,7 +148,7 @@ async function createMultipleSubjects(subjects: Array<{ name: string; descriptio
 // ============================================================================
 
 /** Update subject name */
-async function updateSubjectName(id: string, newName: string) {
+async function updateSubjectName(id: number, newName: string) {
   const result = await db
     .update(subjectsTable)
     .set({
@@ -152,7 +162,7 @@ async function updateSubjectName(id: string, newName: string) {
 }
 
 /** Update subject description */
-async function updateSubjectDescription(id: string, newDescription: string) {
+async function updateSubjectDescription(id: number, newDescription: string) {
   const result = await db
     .update(subjectsTable)
     .set({
@@ -166,7 +176,10 @@ async function updateSubjectDescription(id: string, newDescription: string) {
 }
 
 /** Update multiple fields in a subject */
-async function updateSubject(id: string, data: { name?: string; description?: string }) {
+async function updateSubject(
+  id: number,
+  data: { name?: string; description?: string }
+) {
   const updateData: Record<string, unknown> = {
     updatedAt: new Date(),
   };
@@ -188,7 +201,7 @@ async function updateSubject(id: string, data: { name?: string; description?: st
 // ============================================================================
 
 /** Delete a subject by ID */
-async function deleteSubject(id: string) {
+async function deleteSubject(id: number) {
   const result = await db
     .delete(subjectsTable)
     .where(eq(subjectsTable.id, id))
@@ -198,11 +211,14 @@ async function deleteSubject(id: string) {
 }
 
 /** Delete multiple subjects (if IDs are provided) */
-async function deleteSubjectsByIds(ids: string[]) {
+async function deleteSubjectsByIds(ids: number[]) {
+  if (ids.length === 0) {
+    return [];
+  }
+
   const result = await db
     .delete(subjectsTable)
     .where(inArray(subjectsTable.id, ids))
- // Would need inArray from drizzle-orm
     .returning();
   
   return result;
@@ -214,19 +230,24 @@ async function deleteSubjectsByIds(ids: string[]) {
 
 /** Count total subjects */
 async function countSubjects(): Promise<number> {
-  // Drizzle ORM approach (requires count from drizzle-orm)
-  // For now, using select approach:
-  const result = await db.select().from(subjectsTable);
-  return result.length;
+  const result = await db
+    .select({ value: count() })
+    .from(subjectsTable);
+
+  return Number(result[0]?.value ?? 0);
 }
 
 /** Get subject count by checking with raw SQL directly */
 async function countSubjectsRaw(): Promise<number> {
-  // This would use the sql client directly for COUNT
-  // Example using postgres-js driver
-  // const count = await sql`SELECT COUNT(*) FROM subjects`;
-  // return count[0].count;
-  return 0; // Placeholder
+  try {
+    const result = await sql`SELECT COUNT(*) as count FROM subjects`;
+    if (!result || !result[0]) {
+      throw new Error('Failed to execute COUNT query');
+    }
+    return parseInt(result[0].count as string, 10);
+  } catch (error) {
+    throw new Error(`Count query failed: ${error instanceof Error ? error.message : String(error)}`);
+  }
 }
 
 // ============================================================================
@@ -239,20 +260,27 @@ async function findSubjectsAdvanced(filters: {
   createdAfter?: Date;
   sortBy?: 'name' | 'date';
 }) {
-  let query = db.select().from(subjectsTable) as any;
+  const conditions = [];
 
-  // Add filters conditionally
   if (filters.nameContains) {
-    query = query.where(
+    conditions.push(
       like(subjectsTable.name, `%${filters.nameContains}%`)
     );
   }
 
   if (filters.createdAfter) {
-    // This would need additional condition support from Drizzle
+    conditions.push(
+      gt(subjectsTable.createdAt, filters.createdAfter)
+    );
   }
 
-  // Add sorting
+  let query = db.select().from(subjectsTable).$dynamic();
+
+
+  if (conditions.length > 0) {
+    query = query.where(and(...conditions));
+  }
+
   if (filters.sortBy === 'name') {
     query = query.orderBy(asc(subjectsTable.name));
   } else if (filters.sortBy === 'date') {
@@ -267,7 +295,6 @@ async function findSubjectsAdvanced(filters: {
 // ============================================================================
 
 export {
-  // Read
   getAllSubjects,
   getSubjectById,
   searchSubjects,
@@ -277,19 +304,14 @@ export {
   getFirstTenSubjects,
   getSubjectsPage,
   subjectExists,
-  // Create
   createSubject,
   createMultipleSubjects,
-  // Update
   updateSubjectName,
   updateSubjectDescription,
   updateSubject,
-  // Delete
   deleteSubject,
   deleteSubjectsByIds,
-  // Aggregate
   countSubjects,
   countSubjectsRaw,
-  // Complex
   findSubjectsAdvanced,
 };
