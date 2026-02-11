@@ -106,12 +106,17 @@ Configuration:
 ```
 1. Browser/Client
    └─ POST /api/subjects
-      JSON: { "name": "Math", "description": "..." }
+      JSON: { 
+        "departmentId": 1,
+        "code": "MATH101", 
+        "name": "Math", 
+        "description": "..." 
+      }
                            │
                            ↓
 2. Express Route Handler (src/server.ts)
    ├─ Parse request body
-   ├─ Validate required fields
+   ├─ Validate required fields (departmentId, code, name)
    └─ Call Drizzle insert
                            │
                            ↓
@@ -122,15 +127,15 @@ Configuration:
                            ↓
 4. postgres-js Driver
    ├─ Get connection from pool
-   ├─ Execute SQL: INSERT INTO subjects (name, description, created_at, updated_at)
-   │             VALUES ($1, $2, NOW(), NOW())
+   ├─ Execute SQL: INSERT INTO subjects (department_id, code, name, description, created_at, updated_at)
+   │             VALUES ($1, $2, $3, $4, NOW(), NOW())
    │             RETURNING *
    └─ Return results to Drizzle
                            │
                            ↓
 5. Neon PostgreSQL
    ├─ Execute INSERT
-   ├─ Generate UUID for id
+   ├─ Auto-increment serial id (integer)
    ├─ Set created_at & updated_at timestamps
    └─ Return new row with all fields
                            │
@@ -153,18 +158,37 @@ Configuration:
 Database Schema (src/db/schema.ts)
     │
     ├─ Define: subjectsTable with columns
-    │   id: UUID
-    │   name: varchar(255)
-    │   description: text
-    │   createdAt: timestamp
-    │   updatedAt: timestamp
+    │   id: serial (integer, auto-increment)
+    │   departmentId: integer (NOT NULL, foreign key to departments)
+    │   code: varchar(50) (NOT NULL)
+    │   name: varchar(255) (NOT NULL)
+    │   description: text (nullable)
+    │   createdAt: timestamp (auto-set)
+    │   updatedAt: timestamp (auto-set)
     │
     └─ Infer Types:
        ├─ Subject = typeof subjectsTable.$inferSelect
-       │   (All fields including computed ones, all non-null)
+       │   (All fields from SELECT, including id and timestamps)
+       │   {
+       │     id: number
+       │     departmentId: number
+       │     code: string
+       │     name: string
+       │     description: string | null
+       │     createdAt: Date
+       │     updatedAt: Date
+       │   }
        │
        └─ NewSubject = typeof subjectsTable.$inferInsert
-           (Fields for INSERT, id auto-generated, timestamps optional)
+           (Fields for INSERT, omits auto-generated id)
+           {
+             departmentId: number     (required)
+             code: string             (required)
+             name: string             (required)
+             description?: string     (optional)
+             createdAt?: Date         (optional, server-set)
+             updatedAt?: Date         (optional, server-set)
+           }
                            │
                            ↓
 Drizzle Query Builder (src/server.ts)
@@ -254,20 +278,22 @@ Neon Database:
            │
            ↓
 Response:
-┌──────────────────────────────────────┐
-│ HTTP 200 OK                          │
-│ Content-Type: application/json       │
-│                                      │
-│ [                                    │
-│   {                                  │
-│     "id": "...",                     │
-│     "name": "Math",                  │
-│     "description": "...",            │
-│     "createdAt": "2024-01-01T...",   │
-│     "updatedAt": "2024-01-01T..."    │
-│   }                                  │
-│ ]                                    │
-└──────────────────────────────────────┘
+┌────────────────────────────────────────┐
+│ HTTP 200 OK                            │
+│ Content-Type: application/json         │
+│                                        │
+│ [                                      │
+│   {                                    │
+│     "id": 1,                           │
+│     "departmentId": 2,                 │
+│     "code": "MATH101",                 │
+│     "name": "Math",                    │
+│     "description": "...",              │
+│     "createdAt": "2024-01-01T...",     │
+│     "updatedAt": "2024-01-01T..."      │
+│   }                                    │
+│ ]                                      │
+└────────────────────────────────────────┘
 ```
 
 ---

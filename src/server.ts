@@ -50,21 +50,19 @@ app.get('/api/subjects', async (_req: Request, res: Response) => {
  */
 app.get('/api/subjects/:id', async (req: Request, res: Response) => {
   try {
-    const { id } = req.params;
-    
-    if (!id) {
-      res.status(400).json({ error: 'Subject ID is required' });
-      return;
+    const parsedId = Number(req.params.id);
+
+    if (!Number.isInteger(parsedId)) {
+      return res.status(400).json({ error: 'Invalid subject ID' });
     }
-    
+
     const subject = await db
       .select()
       .from(subjectsTable)
-      .where(eq(subjectsTable.id, id));
+      .where(eq(subjectsTable.id, parsedId));
 
     if (!subject.length) {
-      res.status(404).json({ error: 'Subject not found' });
-      return;
+      return res.status(404).json({ error: 'Subject not found' });
     }
 
     res.json(subject[0]);
@@ -77,21 +75,27 @@ app.get('/api/subjects/:id', async (req: Request, res: Response) => {
 /**
  * POST /api/subjects
  * Creates a new subject
- * Body: { name: string, description?: string }
+ * Body: { name: string, code: string, departmentId: number, description?: string }
  */
 app.post('/api/subjects', async (req: Request, res: Response) => {
   try {
-    const { name, description } = req.body;
+    const { name, code, departmentId, description } = req.body;
 
-    // Validate required field
-    if (!name) {
-      res.status(400).json({ error: 'Subject name is required' });
-      return;
+    // Validate required fields
+    if (!name || !code || departmentId === undefined) {
+      return res.status(400).json({ error: 'Subject name, code, and departmentId are required' });
+    }
+
+    const parsedDepartmentId = Number(departmentId);
+    if (!Number.isInteger(parsedDepartmentId)) {
+      return res.status(400).json({ error: 'departmentId must be a valid integer' });
     }
 
     // Insert new subject - type-safe with Drizzle
     const newSubject: NewSubject = {
       name,
+      code,
+      departmentId: parsedDepartmentId,
       description: description || null,
     };
 
@@ -114,12 +118,11 @@ app.post('/api/subjects', async (req: Request, res: Response) => {
  */
 app.put('/api/subjects/:id', async (req: Request, res: Response) => {
   try {
-    const { id } = req.params;
+    const parsedId = Number(req.params.id);
     const { name, description } = req.body;
 
-    if (!id) {
-      res.status(400).json({ error: 'Subject ID is required' });
-      return;
+    if (!Number.isInteger(parsedId)) {
+      return res.status(400).json({ error: 'Invalid subject ID' });
     }
 
     // Build update object with only provided fields
@@ -133,12 +136,11 @@ app.put('/api/subjects/:id', async (req: Request, res: Response) => {
     const result = await db
       .update(subjectsTable)
       .set(updateData)
-      .where(eq(subjectsTable.id, id))
+      .where(eq(subjectsTable.id, parsedId))
       .returning();
 
     if (!result.length) {
-      res.status(404).json({ error: 'Subject not found' });
-      return;
+      return res.status(404).json({ error: 'Subject not found' });
     }
 
     res.json(result[0]);
@@ -154,21 +156,19 @@ app.put('/api/subjects/:id', async (req: Request, res: Response) => {
  */
 app.delete('/api/subjects/:id', async (req: Request, res: Response) => {
   try {
-    const { id } = req.params;
+    const parsedId = Number(req.params.id);
 
-    if (!id) {
-      res.status(400).json({ error: 'Subject ID is required' });
-      return;
+    if (!Number.isInteger(parsedId)) {
+      return res.status(400).json({ error: 'Invalid subject ID' });
     }
 
     const result = await db
       .delete(subjectsTable)
-      .where(eq(subjectsTable.id, id))
+      .where(eq(subjectsTable.id, parsedId))
       .returning();
 
     if (!result.length) {
-      res.status(404).json({ error: 'Subject not found' });
-      return;
+      return res.status(404).json({ error: 'Subject not found' });
     }
 
     res.json({ message: 'Subject deleted successfully', deleted: result[0] });
@@ -194,4 +194,3 @@ app.listen(port, () => {
   console.log(`✓ Server running at http://localhost:${port}`);
   console.log(`✓ Database: Connected via Neon + Drizzle ORM`);
 });
-
