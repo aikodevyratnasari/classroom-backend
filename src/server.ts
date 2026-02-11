@@ -23,7 +23,7 @@ app.use(express.json());
 
 // Health check
 app.get('/', (_req: Request, res: Response) => {
-  res.json({ message: 'Express server with Neon + Drizzle ORM' });
+  res.json({ message: 'Express server with Neon & Drizzle ORM' });
 });
 
 // ============================================================================
